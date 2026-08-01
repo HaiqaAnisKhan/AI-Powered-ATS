@@ -1,0 +1,21 @@
+version: "3.9"
+
+services:
+  backend:
+    build: ./backend
+    container_name: resume-checker-backend
+    ports:
+      - "4000:4000"
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
+      PORT: 4000
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+
+  frontend:
+    build: ./frontend
+    container_name: resume-checker-frontend
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend

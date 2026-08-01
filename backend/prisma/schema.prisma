@@ -1,0 +1,68 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           Int           @id @default(autoincrement())
+  email        String        @unique
+  password     String
+  name         String
+  role         String        @default("applicant")
+  createdAt    DateTime      @default(now())
+  applications Application[]
+  jobs         Job[]
+  resumes      Resume[]
+}
+
+model Job {
+  id           Int           @id @default(autoincrement())
+  recruiterId  Int
+  title        String
+  company      String
+  location     String?
+  description  String
+  status       String        @default("OPEN")
+  startDate    DateTime?
+  endDate      DateTime?
+  createdAt    DateTime      @default(now())
+  applications Application[]
+  recruiter    User          @relation(fields: [recruiterId], references: [id])
+}
+
+model Resume {
+  id            Int          @id @default(autoincrement())
+  userId        Int
+  filename      String
+  extractedText String
+  uploadedAt    DateTime     @default(now())
+  analyses      Analysis[]
+  application   Application?
+  user          User         @relation(fields: [userId], references: [id])
+}
+
+model Application {
+  id          Int      @id @default(autoincrement())
+  applicantId Int
+  jobId       Int
+  resumeId    Int?     @unique
+  status      String   @default("Applied")
+  appliedAt   DateTime @default(now())
+  resume      Resume?  @relation(fields: [resumeId], references: [id])
+  job         Job      @relation(fields: [jobId], references: [id])
+  applicant   User     @relation(fields: [applicantId], references: [id])
+}
+
+model Analysis {
+  id             Int      @id @default(autoincrement())
+  resumeId       Int
+  jobDescription String
+  score          Int
+  feedback       String
+  createdAt      DateTime @default(now())
+  resume         Resume   @relation(fields: [resumeId], references: [id])
+}
