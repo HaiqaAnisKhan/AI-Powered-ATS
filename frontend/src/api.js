@@ -1,4 +1,4 @@
-const BASE ="https://ai-powered-applicant-tracking-system.onrender.com/api";
+const BASE = `${import.meta.env.VITE_API_URL}/api`;
 
 function getToken() {
   return localStorage.getItem("token");
