@@ -60,4 +60,19 @@ export const api = {
     method: "PATCH",
     body: { status },
   }),
+  getInterviewQuestions: (applicationId) =>
+  request(`/applications/${applicationId}/interview-questions`, {
+    method: "POST",
+  }),
+  getNotes: (applicationId) =>
+  request(`/notes/application/${applicationId}`),
+  addNote: (applicationId, text) =>
+  request(`/notes/application/${applicationId}`, {
+    method: "POST",
+    body: { text },
+  }),
+  deleteNote: (noteId) =>
+  request(`/notes/${noteId}`, {
+    method: "DELETE",
+  }),
 };

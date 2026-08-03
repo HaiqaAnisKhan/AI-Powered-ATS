@@ -199,14 +199,21 @@ router.patch(
   async (req, res) => {
     try {
       const { status } = req.body;
+      const id = Number(req.params.id);
+
+      if (!["OPEN", "CLOSED"].includes(status)) {
+        return res.status(400).json({ error: "Status must be OPEN or CLOSED." });
+      }
+
+      const existing = await prisma.job.findUnique({ where: { id } });
+      if (!existing) return res.status(404).json({ error: "Job not found." });
+      if (existing.recruiterId !== req.user.id) {
+        return res.status(403).json({ error: "You can only update your own jobs." });
+      }
 
       const job = await prisma.job.update({
-        where: {
-          id: Number(req.params.id),
-        },
-        data: {
-          status,
-        },
+        where: { id },
+        data: { status },
       });
 
       res.json({ job });

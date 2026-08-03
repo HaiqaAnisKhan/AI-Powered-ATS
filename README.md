@@ -88,12 +88,15 @@ This AI-powered ATS reduces that effort by automating resume evaluation and appl
 - All Candidates page — search every applicant, or filter down to one job (shows that job's description + its applicants only), with a minimum-score filter
 - View applicant resumes
 - View AI candidate evaluations
+- Generate AI-tailored interview questions per applicant (cached, regenerable)
+- Add private notes on applicants
 - Update application status
   - Applied
   - Under Review
   - Interview
   - Accepted
   - Rejected
+- Applicant receives an email notification on status change (if SMTP is configured)
 
 **Sidebar navigation:** Overview · Create Job · My Jobs · All Candidates
 
@@ -263,7 +266,18 @@ The backend enforces role-based authorization using:
 |--------|----------|-------------|
 | POST | `/api/applications` | Apply to a job |
 | GET | `/api/applications` | Recruiter views all applications |
-| PATCH | `/api/applications/:id/status` | Update application status |
+| PATCH | `/api/applications/:id/status` | Update application status (recruiter must own the job; also sends a status-change email if SMTP is configured) |
+| POST | `/api/applications/:id/interview-questions` | Recruiter: generate/regenerate 5 AI interview questions for this applicant, cached on the application |
+
+---
+
+## Notes
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/notes/application/:applicationId` | Recruiter: list notes on an applicant (must own the job) |
+| POST | `/api/notes/application/:applicationId` | Recruiter: add a note |
+| DELETE | `/api/notes/:id` | Recruiter: delete their own note |
 
 ---
 
@@ -315,9 +329,10 @@ cd backend
 cp .env.example .env
 
 # Configure:
-# DATABASE_URL   
+# DATABASE_URL
 # JWT_SECRET
-# GEMINI_KEY
+# GEMINI_API_KEY
+# (optional) SMTP_HOST / SMTP_PORT / SMTP_USER / SMTP_PASS / EMAIL_FROM — for status-change emails
 
 npm install
 
@@ -390,8 +405,9 @@ http://localhost:4000
 |----------|-------------|
 | DATABASE_URL | PostgreSQL connection string (e.g. Supabase) |
 | JWT_SECRET | Secret key for JWT authentication |
-| GEMINI_KEY | Google Gemini API key |
+| GEMINI_API_KEY | Google Gemini API key |
 | PORT | Backend server port |
+| SMTP_HOST / SMTP_PORT / SMTP_USER / SMTP_PASS / EMAIL_FROM | Optional — SMTP settings for applicant status-change emails. If unset, emails are skipped and logged instead of failing the request. |
 
 ## Frontend
 
@@ -444,11 +460,9 @@ http://localhost:4000
 
 # Future Improvements
 - Recruiter interview scheduling
-- Recruiter notes on applicants
-- Email notifications
 - Resume version history
 - Job title/company gibberish validation (currently only the description field is checked)
 - Multi-company recruiter support
-- AI interview question generation
+- Semantic/embedding-based resume-to-job matching alongside the current LLM scoring
 
 ---

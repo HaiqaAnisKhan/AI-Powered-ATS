@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
-import AnalysisModal from "./AnalysisModal";
+import ApplicantDetailModal from "./ApplicantDetailModal";
 
 export default function JobDetailModal({ job, onClose, onStatusChange }) {
   const [applicants, setApplicants] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [selectedAnalysis, setSelectedAnalysis] = useState(null);
+  const [selected, setSelected] = useState(null);
   const [showApplicants, setShowApplicants] = useState(false);
   const [status, setStatus] = useState(job.status);
 
@@ -99,11 +99,9 @@ export default function JobDetailModal({ job, onClose, onStatusChange }) {
                       <td>{a.status}</td>
                       <td>{new Date(a.appliedAt).toLocaleDateString()}</td>
                       <td>
-                        {a.resume?.analyses?.length > 0 && (
-                          <button className="btn btn-secondary" onClick={() => setSelectedAnalysis(a.resume.analyses[0])}>
-                            View Analysis
-                          </button>
-                        )}
+                        <button className="btn btn-secondary" onClick={() => setSelected(a)}>
+                          View Details
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -120,7 +118,14 @@ export default function JobDetailModal({ job, onClose, onStatusChange }) {
           </div>
         )}
 
-        <AnalysisModal analysis={selectedAnalysis} onClose={() => setSelectedAnalysis(null)} />
+        {selected && (
+          <ApplicantDetailModal
+            applicationId={selected.id}
+            applicantName={selected.applicant?.name}
+            analysis={selected.resume?.analyses?.[0] || null}
+            onClose={() => setSelected(null)}
+          />
+        )}
       </div>
     </div>
   );

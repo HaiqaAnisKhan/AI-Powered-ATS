@@ -58,8 +58,7 @@ Return exactly this JSON structure:
   }
 
   const data = await response.json();
- 
-console.dir(data, { depth: null });
+
   const rawText = data.candidates?.[0]?.content?.parts?.map((p) => p.text).join("\n") || "";
 
   const cleaned = rawText.replace(/```json|```/g, "").trim();
@@ -80,4 +79,76 @@ throw new Error("AI returned an invalid response. Please try again.");
   };
 }
 
-module.exports = { analyzeResume };
+async function generateInterviewQuestions(resumeText, jobDescription, analysisFeedback) {
+  if (!GEMINI_API_KEY) {
+    throw new Error(
+      "GEMINI_API_KEY is not set. Add it to backend/.env before running analysis."
+    );
+  }
+
+  const missing = Array.isArray(analysisFeedback?.missingKeywords)
+    ? analysisFeedback.missingKeywords.join(", ")
+    : "";
+  const strengths = Array.isArray(analysisFeedback?.strengths)
+    ? analysisFeedback.strengths.join(", ")
+    : "";
+
+  const prompt = `You are an expert technical interviewer preparing questions for a recruiter.
+
+RESUME:
+"""
+${resumeText.slice(0, 5000)}
+"""
+
+JOB DESCRIPTION:
+"""
+${jobDescription.slice(0, 2500)}
+"""
+
+Previously identified strengths: ${strengths || "none provided"}
+Previously identified gaps/missing skills: ${missing || "none provided"}
+
+Generate 5 interview questions tailored to this specific candidate and role. Mix in:
+- 1-2 questions that probe the identified gaps
+- 1-2 questions that let the candidate expand on their strengths
+- 1-2 general role-fit / behavioral questions
+
+Return ONLY valid JSON, no markdown, no commentary. Return exactly this structure:
+{
+  "questions": [<5 short strings, each a single interview question>]
+}`;
+
+  const response = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: {
+        temperature: 0.4,
+        maxOutputTokens: 1024,
+        responseMimeType: "application/json",
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Gemini API error (${response.status}): ${errText}`);
+  }
+
+  const data = await response.json();
+  const rawText = data.candidates?.[0]?.content?.parts?.map((p) => p.text).join("\n") || "";
+  const cleaned = rawText.replace(/```json|```/g, "").trim();
+
+  let parsed;
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch (err) {
+    console.error("Gemini returned invalid JSON:", cleaned);
+    throw new Error("AI returned an invalid response. Please try again.");
+  }
+
+  return Array.isArray(parsed.questions) ? parsed.questions : [];
+}
+
+module.exports = { analyzeResume, generateInterviewQuestions };

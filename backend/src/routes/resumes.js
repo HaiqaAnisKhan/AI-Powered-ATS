@@ -195,6 +195,7 @@ router.get("/", requireAuth, requireRole("recruiter"), async (req, res) => {
       include: {
         user: { select: { id: true, name: true, email: true } },
         analyses: { orderBy: { createdAt: "desc" }, take: 1 },
+        application: { select: { id: true } },
       },
       orderBy: { uploadedAt: "desc" },
     });
@@ -206,6 +207,7 @@ router.get("/", requireAuth, requireRole("recruiter"), async (req, res) => {
         filename: r.filename,
         uploadedAt: r.uploadedAt,
         applicant: r.user,
+        applicationId: r.application?.id || null,
         latestScore: latest ? latest.score : null,
         latestFeedback: latest ? JSON.parse(latest.feedback) : null,
         analyzedAt: latest ? latest.createdAt : null,

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
-import AnalysisModal from "../components/AnalysisModal";
+import ApplicantDetailModal from "../components/ApplicantDetailModal";
 
 export default function CandidatesPage() {
   const [jobs, setJobs] = useState([]);
@@ -12,7 +12,7 @@ export default function CandidatesPage() {
   const [candidates, setCandidates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [selectedAnalysis, setSelectedAnalysis] = useState(null);
+  const [selected, setSelected] = useState(null);
 
   useEffect(() => {
     api.getMyJobs().then((data) => setJobs(data.jobs));
@@ -47,6 +47,7 @@ export default function CandidatesPage() {
       setCandidates(
         apps.map((a) => ({
           id: a.resume?.id,
+          applicationId: a.id,
           filename: a.resume?.filename,
           applicant: a.applicant,
           latestScore: a.resume?.analyses?.[0]?.score ?? null,
@@ -158,16 +159,9 @@ export default function CandidatesPage() {
                   <td>{c.filename}</td>
                   <td>{c.latestScore !== null ? `${c.latestScore}%` : "-"}</td>
                   <td>
-                    {c.latestScore !== null && (
-                      <button
-                        className="btn"
-                        onClick={() =>
-                          setSelectedAnalysis(
-                            c.rawAnalysis || { score: c.latestScore, feedback: JSON.stringify(c.latestFeedback) }
-                          )
-                        }
-                      >
-                        View Analysis
+                    {(c.applicationId || c.latestScore !== null) && (
+                      <button className="btn" onClick={() => setSelected(c)}>
+                        View Details
                       </button>
                     )}
                   </td>
@@ -185,7 +179,19 @@ export default function CandidatesPage() {
         )}
       </div>
 
-      <AnalysisModal analysis={selectedAnalysis} onClose={() => setSelectedAnalysis(null)} />
+      {selected && (
+        <ApplicantDetailModal
+          applicationId={selected.applicationId}
+          applicantName={selected.applicant?.name}
+          analysis={
+            selected.rawAnalysis ||
+            (selected.latestScore !== null
+              ? { score: selected.latestScore, feedback: JSON.stringify(selected.latestFeedback) }
+              : null)
+          }
+          onClose={() => setSelected(null)}
+        />
+      )}
     </div>
   );
 }

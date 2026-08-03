@@ -17,6 +17,7 @@ model User {
   applications Application[]
   jobs         Job[]
   resumes      Resume[]
+  notes        Note[]
 }
 
 model Job {
@@ -46,15 +47,27 @@ model Resume {
 }
 
 model Application {
-  id          Int      @id @default(autoincrement())
-  applicantId Int
-  jobId       Int
-  resumeId    Int?     @unique
-  status      String   @default("Applied")
-  appliedAt   DateTime @default(now())
-  resume      Resume?  @relation(fields: [resumeId], references: [id])
-  job         Job      @relation(fields: [jobId], references: [id])
-  applicant   User     @relation(fields: [applicantId], references: [id])
+  id                 Int      @id @default(autoincrement())
+  applicantId        Int
+  jobId              Int
+  resumeId           Int?     @unique
+  status             String   @default("Applied")
+  appliedAt          DateTime @default(now())
+  interviewQuestions String?
+  resume             Resume?  @relation(fields: [resumeId], references: [id])
+  job                Job      @relation(fields: [jobId], references: [id])
+  applicant          User     @relation(fields: [applicantId], references: [id])
+  notes              Note[]
+}
+
+model Note {
+  id            Int         @id @default(autoincrement())
+  applicationId Int
+  recruiterId   Int
+  text          String
+  createdAt     DateTime    @default(now())
+  application   Application @relation(fields: [applicationId], references: [id])
+  recruiter     User        @relation(fields: [recruiterId], references: [id])
 }
 
 model Analysis {
