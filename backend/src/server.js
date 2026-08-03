@@ -17,6 +17,17 @@ const PORT = process.env.PORT || 4000;
 app.use(cors());
 app.use(express.json());
 
+app.get("/", (req, res) => {
+  res.send(`
+    <h1>AI-Powered ATS Backend</h1>
+    <p>Backend API is running successfully.</p>
+
+    <h3>Available Endpoints</h3>
+    <ul>
+      <li><a href="/api/health">/api/health</a></li>
+    </ul>
+  `);
+});
 app.get("/api/health", (req, res) => res.json({ status: "ok" }));
 
 app.use("/api/auth", authRoutes);

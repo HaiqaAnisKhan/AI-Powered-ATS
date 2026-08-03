@@ -1,7 +1,8 @@
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const GEMINI_API_URL =
-  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
-  console.log("=== Gemini Config ===");
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+
+console.log("=== Gemini Config ===");
 console.log("Model:", GEMINI_API_URL);
 console.log("API Key exists:", !!process.env.GEMINI_API_KEY);
 console.log(
@@ -9,6 +10,84 @@ console.log(
   process.env.GEMINI_API_KEY?.substring(0, 8)
 );
 console.log("=====================");
+
+/**
+ * Calls the Gemini API with automatic retry on 429 (rate limit / quota) errors.
+ * Uses exponential backoff, and respects the server's suggested retryDelay when present.
+ */
+async function callGeminiWithRetry(body, { maxRetries = 3 } = {}) {
+  let attempt = 0;
+
+  while (true) {
+    const response = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    if (response.ok) {
+      return response.json();
+    }
+
+    const errText = await response.text();
+
+    // Only retry on 429 (rate limit / quota exceeded). Other errors fail immediately.
+    if (response.status === 429 && attempt < maxRetries) {
+      let retryDelaySeconds = null;
+      try {
+        const parsedErr = JSON.parse(errText);
+        const retryInfo = parsedErr?.error?.details?.find(
+          (d) => d["@type"] === "type.googleapis.com/google.rpc.RetryInfo"
+        );
+        if (retryInfo?.retryDelay) {
+          retryDelaySeconds = parseFloat(retryInfo.retryDelay.replace("s", ""));
+        }
+      } catch (_) {
+        // ignore parse failure, fall back to exponential backoff
+      }
+
+      const backoffSeconds =
+        retryDelaySeconds ?? Math.pow(2, attempt + 1); // 2s, 4s, 8s...
+      const waitMs = Math.ceil(backoffSeconds * 1000);
+
+      console.warn(
+        `Gemini API 429 (attempt ${attempt + 1}/${maxRetries}). Retrying in ${backoffSeconds}s...`
+      );
+
+      await new Promise((resolve) => setTimeout(resolve, waitMs));
+      attempt++;
+      continue;
+    }
+
+    throw new Error(`Gemini API error (${response.status}): ${errText}`);
+  }
+}
+
+/**
+ * Strips markdown fences and extracts the outermost {...} block from a raw
+ * Gemini text response, then parses it as JSON.
+ */
+function parseGeminiJson(rawText, { context = "" } = {}) {
+  let cleaned = rawText.replace(/```json|```/g, "").trim();
+
+  const firstBrace = cleaned.indexOf("{");
+  const lastBrace = cleaned.lastIndexOf("}");
+  if (firstBrace !== -1 && lastBrace !== -1) {
+    cleaned = cleaned.substring(firstBrace, lastBrace + 1);
+  }
+
+  try {
+    return JSON.parse(cleaned);
+  } catch (err) {
+    console.error(`Gemini returned invalid JSON${context ? ` (${context})` : ""}:`, cleaned);
+    throw new Error("AI returned an invalid response. Please try again.");
+  }
+}
+
+function getResponseText(data) {
+  return data.candidates?.[0]?.content?.parts?.map((p) => p.text).join("\n") || "";
+}
+
 async function analyzeResume(resumeText, jobDescription) {
   if (!GEMINI_API_KEY) {
     throw new Error(
@@ -45,40 +124,20 @@ Return exactly this JSON structure:
   "suggestions": [<2-5 short, actionable strings to improve the resume for this job>]
 }`;
 
-  const response = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: {
-  temperature: 0.2,
-  maxOutputTokens: 2048,
-  responseMimeType: "application/json",
-},
-    }),
+  const data = await callGeminiWithRetry({
+    contents: [{ parts: [{ text: prompt }] }],
+    generationConfig: {
+      temperature: 0.2,
+      maxOutputTokens: 2048,
+      responseMimeType: "application/json",
+    },
   });
 
-  if (!response.ok) {
-    const errText = await response.text();
-    
-    throw new Error(`Gemini API error (${response.status}): ${errText}`);
-  }
-
-  const data = await response.json();
   console.log("Gemini Resume Analysis Response:");
   console.log(JSON.stringify(data, null, 2));
 
-  const rawText = data.candidates?.[0]?.content?.parts?.map((p) => p.text).join("\n") || "";
-
-  const cleaned = rawText.replace(/```json|```/g, "").trim();
-
-  let parsed;
-  try {
-    parsed = JSON.parse(cleaned);
-  } catch (err) {
-    console.error("Gemini returned invalid JSON:", cleaned);
-throw new Error("AI returned an invalid response. Please try again.");
-  }
+  const rawText = getResponseText(data);
+  const parsed = parseGeminiJson(rawText, { context: "analyzeResume" });
 
   return {
     score: typeof parsed.score === "number" ? parsed.score : 0,
@@ -127,51 +186,22 @@ Return ONLY valid JSON, no markdown, no commentary. Return exactly this structur
   "questions": [<5 short strings, each a single interview question>]
 }`;
 
-  const response = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: {
-        temperature: 0.4,
-        maxOutputTokens: 2048,
-        responseMimeType: "application/json",
-      },
-    }),
+  const data = await callGeminiWithRetry({
+    contents: [{ parts: [{ text: prompt }] }],
+    generationConfig: {
+      temperature: 0.4,
+      maxOutputTokens: 2048,
+      responseMimeType: "application/json",
+    },
   });
 
-  if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`Gemini API error (${response.status}): ${errText}`);
-  }
-
-  const data = await response.json();
   console.log("Gemini Response:");
   console.log(JSON.stringify(data, null, 2));
-  const rawText = data.candidates?.[0]?.content?.parts?.map((p) => p.text).join("\n") || "";
-  const cleaned = rawText.replace(/```json|```/g, "").trim();
 
-  let parsed;
+  const rawText = getResponseText(data);
+  const parsed = parseGeminiJson(rawText, { context: "generateInterviewQuestions" });
 
-try {
-  let cleanedJson = cleaned;
-
-  const firstBrace = cleanedJson.indexOf("{");
-  const lastBrace = cleanedJson.lastIndexOf("}");
-
-  if (firstBrace !== -1 && lastBrace !== -1) {
-    cleanedJson = cleanedJson.substring(firstBrace, lastBrace + 1);
-  }
-
-  parsed = JSON.parse(cleanedJson);
-} catch (err) {
-  console.error("Gemini returned invalid JSON:");
-  console.error(cleaned);
-
-  throw new Error("AI returned an invalid response. Please try again.");
-}
-
-return Array.isArray(parsed.questions) ? parsed.questions : [];
+  return Array.isArray(parsed.questions) ? parsed.questions : [];
 }
 
 module.exports = { analyzeResume, generateInterviewQuestions };
