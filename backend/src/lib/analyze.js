@@ -1,6 +1,6 @@
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const GEMINI_API_URL =
-  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
+  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent";
   console.log("=== Gemini Config ===");
 console.log("Model:", GEMINI_API_URL);
 console.log("API Key exists:", !!process.env.GEMINI_API_KEY);
