@@ -1,7 +1,6 @@
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const GEMINI_API_URL =
-  "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent";
-
+  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
 async function analyzeResume(resumeText, jobDescription) {
   if (!GEMINI_API_KEY) {
     throw new Error(
@@ -58,6 +57,8 @@ Return exactly this JSON structure:
   }
 
   const data = await response.json();
+  console.log("Gemini Resume Analysis Response:");
+  console.log(JSON.stringify(data, null, 2));
 
   const rawText = data.candidates?.[0]?.content?.parts?.map((p) => p.text).join("\n") || "";
 
@@ -97,12 +98,12 @@ async function generateInterviewQuestions(resumeText, jobDescription, analysisFe
 
 RESUME:
 """
-${resumeText.slice(0, 5000)}
+${resumeText.slice(0, 3000)}
 """
 
 JOB DESCRIPTION:
 """
-${jobDescription.slice(0, 2500)}
+${jobDescription.slice(0, 1500)}
 """
 
 Previously identified strengths: ${strengths || "none provided"}
@@ -125,7 +126,7 @@ Return ONLY valid JSON, no markdown, no commentary. Return exactly this structur
       contents: [{ parts: [{ text: prompt }] }],
       generationConfig: {
         temperature: 0.4,
-        maxOutputTokens: 1024,
+        maxOutputTokens: 2048,
         responseMimeType: "application/json",
       },
     }),
@@ -137,18 +138,32 @@ Return ONLY valid JSON, no markdown, no commentary. Return exactly this structur
   }
 
   const data = await response.json();
+  console.log("Gemini Response:");
+  console.log(JSON.stringify(data, null, 2));
   const rawText = data.candidates?.[0]?.content?.parts?.map((p) => p.text).join("\n") || "";
   const cleaned = rawText.replace(/```json|```/g, "").trim();
 
   let parsed;
-  try {
-    parsed = JSON.parse(cleaned);
-  } catch (err) {
-    console.error("Gemini returned invalid JSON:", cleaned);
-    throw new Error("AI returned an invalid response. Please try again.");
+
+try {
+  let cleanedJson = cleaned;
+
+  const firstBrace = cleanedJson.indexOf("{");
+  const lastBrace = cleanedJson.lastIndexOf("}");
+
+  if (firstBrace !== -1 && lastBrace !== -1) {
+    cleanedJson = cleanedJson.substring(firstBrace, lastBrace + 1);
   }
 
-  return Array.isArray(parsed.questions) ? parsed.questions : [];
+  parsed = JSON.parse(cleanedJson);
+} catch (err) {
+  console.error("Gemini returned invalid JSON:");
+  console.error(cleaned);
+
+  throw new Error("AI returned an invalid response. Please try again.");
+}
+
+return Array.isArray(parsed.questions) ? parsed.questions : [];
 }
 
 module.exports = { analyzeResume, generateInterviewQuestions };
